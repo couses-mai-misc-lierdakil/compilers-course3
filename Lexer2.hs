@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall -Wextra #-}
+{-# LANGUAGE RecordWildCards #-}
 module Main where
 
 import Data.Maybe
+import Data.Char
 
 data TokenName =
     Number
@@ -12,7 +14,7 @@ data TokenName =
   | Comma
   deriving Show
 
-type Token = (TokenName, String)
+data Token = Token { tokenName :: TokenName, tokenStr :: String } deriving Show
 type StateNum = Int
 
 transitionTable :: StateNum -> Char -> Maybe StateNum
@@ -36,8 +38,7 @@ transitionTable st c =
     7 | isLetter c || isDigit c -> Just 7
     _                           -> Nothing
   where
-  isLetter ch = (ch >= 'a' && ch <= 'z') || ch == '_'
-  isDigit ch = ch >= '0' && ch <= '9'
+  isLetter ch = isAsciiLower ch || ch == '_'
 
 stateToTokenName :: StateNum -> Maybe TokenName
 stateToTokenName st =
@@ -52,47 +53,60 @@ stateToTokenName st =
     10 -> Just Comma
     _  -> Nothing
 
-type FullState = (String, String, StateNum)
-                -- input, output, current st.
-type Baggage = (FullState, Maybe FullState)
+data FullState = FullState { fsInput :: String
+                           , fsOutput :: String
+                           , fsCurrentState :: StateNum
+                           }
+data Baggage = Baggage { bagCurrentState :: FullState
+                       , bagLastAccState :: Maybe FullState
+                       }
               -- current st., last seen accepting st.
 data Action = Continue | Restart | Stop
 
 dfaStep :: Baggage -> (Action, Baggage)
 dfaStep b =
-  let (curFullSt, lastAccSt) = b
-      (input, output, curState) = curFullSt
-      nextState = transitionTable curState (head input)
+  let Baggage{..} = b
+      FullState{..} = bagCurrentState
+      nextState = transitionTable fsCurrentState (head fsInput)
       newAccSt =
-        maybe lastAccSt
-              (const $ Just curFullSt)
-              $ stateToTokenName curState
-      input' = tail input
-      output' = if head input == ' '
-                then output
-                else output <> [head input]
-  in if null input
-     then (Stop, (curFullSt, newAccSt))
-     else maybe (Restart, (curFullSt, newAccSt))
-                (\st -> (Continue, ((input', output', st), newAccSt)))
+        maybe bagLastAccState
+              (const $ Just bagCurrentState)
+              $ stateToTokenName fsCurrentState
+      input' = tail fsInput
+      output' = if head fsInput == ' '
+                then fsOutput
+                else fsOutput <> [head fsInput]
+  in if null fsInput
+     then (Stop, Baggage{bagCurrentState = bagCurrentState
+                        ,bagLastAccState = newAccSt })
+     else maybe (Restart, Baggage{bagCurrentState = bagCurrentState
+                                 ,bagLastAccState = newAccSt })
+                (\st -> (Continue,
+                        Baggage{bagCurrentState = FullState {
+                                  fsInput = input'
+                                , fsOutput = output'
+                                , fsCurrentState = st
+                                }
+                               , bagLastAccState = newAccSt }
+                ))
                 nextState
 
 dfaRun :: Baggage -> [Token]
 dfaRun b =
   case dfaStep b of
-    (Stop, (_, Just (_, output', lastAccStNum)))
-      -> [(fromJust $ stateToTokenName lastAccStNum, output')]
-    (Stop, (_, Nothing))
+    (Stop, Baggage _ (Just (FullState _ output' lastAccStNum)))
+      -> [Token (fromJust $ stateToTokenName lastAccStNum) output']
+    (Stop, Baggage _ Nothing)
       -> []
-    (Restart, (_, Just (input', output', lastAccStNum)))
-      -> (fromJust $ stateToTokenName lastAccStNum, output') : dfaRun (initState input')
-    (Restart, (_, Nothing))
+    (Restart, Baggage _ (Just (FullState input' output' lastAccStNum)))
+      -> Token (fromJust $ stateToTokenName lastAccStNum) output' : dfaRun (initState input')
+    (Restart, Baggage _ Nothing)
       -> []
     (Continue, bag)
       -> dfaRun bag
 
 initState :: String -> Baggage
-initState input = ((input, "", 0), Nothing)
+initState input = Baggage (FullState input "" 0) Nothing
 
 lexer :: String -> String
 lexer input = show $ dfaRun (initState input)
