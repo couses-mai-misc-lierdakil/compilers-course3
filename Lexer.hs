@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall -Wextra #-}
+{-# LANGUAGE RecordWildCards #-}
 module Main where
 
-import Data.Char (isAsciiLower, isDigit)
+import Data.Maybe
+import Data.Char
 
 data TokenName =
     Number
@@ -10,80 +12,104 @@ data TokenName =
   | Lparen
   | Rparen
   | Comma
-  deriving (Show)
+  deriving Show
 
-type Token = (TokenName, String)
-type State = Int
+data Token = Token { tokenName :: TokenName, tokenStr :: String } deriving Show
+type StateNum = Int
 
-stateToToken :: String -> State -> Maybe Token
-stateToToken inp state =
-  case state of
-    1  -> Just (Number  , inp)
-    2  -> Just (Number  , inp)
-    5  -> Just (Number  , inp)
-    6  -> Just (Operator, inp)
-    7  -> Just (Id      , inp)
-    8  -> Just (Lparen  , inp)
-    9  -> Just (Rparen  , inp)
-    10 -> Just (Comma   , inp)
+transitionTable :: StateNum -> Char -> Maybe StateNum
+transitionTable st c =
+  case st of
+    0 | isLetter c              -> Just 7
+      | c == '('                -> Just 8
+      | c == ')'                -> Just 9
+      | c == ','                -> Just 10
+      | c `elem` "+*/^%-"       -> Just 6
+      | isDigit c               -> Just 1
+      | c == ' '                -> Just 0
+    1 | isDigit c               -> Just 1
+      | c == '.'                -> Just 2
+    2 | isDigit c               -> Just 2
+      | c `elem` "eE"           -> Just 3
+    3 | c `elem` "+-"           -> Just 4
+      | isDigit c               -> Just 5
+    4 | isDigit c               -> Just 5
+    5 | isDigit c               -> Just 5
+    7 | isLetter c || isDigit c -> Just 7
+    _                           -> Nothing
+  where
+  isLetter ch = isAsciiLower ch || ch == '_'
+
+stateToTokenName :: StateNum -> Maybe TokenName
+stateToTokenName st =
+  case st of
+    1  -> Just Number
+    2  -> Just Number
+    5  -> Just Number
+    6  -> Just Operator
+    7  -> Just Id
+    8  -> Just Lparen
+    9  -> Just Rparen
+    10 -> Just Comma
     _  -> Nothing
 
-transitionTable :: State -> Char -> Maybe State
-transitionTable state char =
-  case state of
-    0 | isLetter char       -> Just 7
-      | char == '('         -> Just 8
-      | char == ')'         -> Just 9
-      | char == ','         -> Just 10
-      | char `elem` "+*/^%-"-> Just 6
-      | isDigit char        -> Just 1
-    1 | isDigit char        -> Just 1
-      | char == '.'         -> Just 2
-    2 | isDigit char        -> Just 2
-      | char `elem` "eE"    -> Just 3
-    3 | char `elem` "+-"    -> Just 4
-      | isDigit char        -> Just 5
-    4 | isDigit char        -> Just 5
-    5 | isDigit char        -> Just 5
-    7 | isDigit char || isLetter char
-                            -> Just 7
-    _                       -> Nothing
-  where
-  isLetter c = isAsciiLower c || c == '_'
+data FullState = FullState { fsInput :: String
+                           , fsOutput :: String
+                           , fsCurrentState :: StateNum
+                           }
+data Baggage = Baggage { bagCurrentState :: FullState
+                       , bagLastAccState :: Maybe FullState
+                       }
+              -- current st., last seen accepting st.
+data Action = Continue | Restart | Stop
 
-data DFAAction = Continue | Restart
+dfaStep :: Baggage -> (Action, Baggage)
+dfaStep b =
+  let Baggage{..} = b
+      FullState{..} = bagCurrentState
+      nextState = transitionTable fsCurrentState (head fsInput)
+      newAccSt =
+        maybe bagLastAccState
+              (const $ Just bagCurrentState)
+              $ stateToTokenName fsCurrentState
+      input' = tail fsInput
+      output' = if head fsInput == ' '
+                then fsOutput
+                else fsOutput <> [head fsInput]
+  in if null fsInput
+     then (Stop, Baggage{bagCurrentState = bagCurrentState
+                        ,bagLastAccState = newAccSt })
+     else maybe (Restart, Baggage{bagCurrentState = bagCurrentState
+                                 ,bagLastAccState = newAccSt })
+                (\st -> (Continue,
+                        Baggage{bagCurrentState = FullState {
+                                  fsInput = input'
+                                , fsOutput = output'
+                                , fsCurrentState = st
+                                }
+                               , bagLastAccState = newAccSt }
+                ))
+                nextState
 
-type StateWIO = (String, String, State)
-              -- input , output, st
-type DFAState = (StateWIO, Maybe StateWIO)
-              -- (input, st)    , last accepting state
+dfaRun :: Baggage -> [Token]
+dfaRun b =
+  case dfaStep b of
+    (Stop, Baggage _ (Just (FullState _ output' lastAccStNum)))
+      -> [Token (fromJust $ stateToTokenName lastAccStNum) output']
+    (Stop, Baggage _ Nothing)
+      -> []
+    (Restart, Baggage _ (Just (FullState input' output' lastAccStNum)))
+      -> Token (fromJust $ stateToTokenName lastAccStNum) output' : dfaRun (initState input')
+    (Restart, Baggage _ Nothing)
+      -> []
+    (Continue, bag)
+      -> dfaRun bag
 
-dfaStep :: DFAState -> (DFAAction, DFAState)
-dfaStep ds =
-  let ((input, output, st), lac) = ds
-      nextState = transitionTable st (head input)
-      newAcceptingState =
-        maybe lac (const $ Just (input, output, st))
-        $ stateToToken output st
-      input' = tail input
-      output' = output <> [head input]
-  in if null input
-     then (Restart, (undefined, newAcceptingState))
-     else  maybe (Restart, (undefined, newAcceptingState))
-                 (\x -> (Continue, ((input', output', x), newAcceptingState)))
-                 nextState
+initState :: String -> Baggage
+initState input = Baggage (FullState input "" 0) Nothing
 
-dfaLoop :: DFAState -> [Maybe Token]
-dfaLoop st =
-  case dfaStep st of
-    (Continue, st') -> dfaLoop st'
-    (Restart, (_, Just accSt))
-        -> stateToToken output st' : dfaLoop ((input, "", 0), Nothing)
-        where (input, output, st') = accSt
-    (Restart, (_, Nothing)) -> []
-
-mainLoop :: String -> String
-mainLoop input = show $ dfaLoop ((input, "", 0), Nothing)
+lexer :: String -> String
+lexer input = show $ dfaRun (initState input)
 
 main :: IO ()
-main = interact mainLoop
+main = interact (unlines . map lexer . lines)
