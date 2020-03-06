@@ -13,10 +13,18 @@
 Импортируем стандартные модули. Data.List содержит функции
 работы со списками (в данном случае нас интересует функция
 uncons), Data.Char -- функции работы с символами, в частности
-функции классификации символов.
+функции классификации символов. Наконец, из Control.Applicative мы импортируем
+оператор <|>, который является оператором альтернативы для типов, для которых
+он определён. В частности, для Maybe a он определён как
 
-> import Data.List
-> import Data.Char
+< Just x <|> y = Just x
+< Nothing <|> y = y
+
+то есть возвращает первый аргумент, если он Just, в противном случае второй.
+
+> import Data.List (uncons)
+> import Data.Char (isDigit, isAsciiLower)
+> import Control.Applicative ((<|>))
 
 Объявляем Enum-тип с именами (типами) токенов (лексем):
 
@@ -109,6 +117,10 @@ deriving Show здесь позволяет использовать функц�
 >                            , fsCurrentState :: StateNum
 >                            }
 
+> data LastAcceptingState = LAState { lasInput :: String
+>                                   , lasToken :: Token
+>                                   }
+
 Определим так же "багаж" информации, которую нам надо отслеживать. Поскольку нам
 необходимо возвращаться к прошлому полному состоянию системы, когда автомат
 последний раз находился в принимающем состоянии, нам надо кроме текущего
@@ -116,7 +128,7 @@ deriving Show здесь позволяет использовать функц�
 автомата, никакого принимающего состояния нет.
 
 > data Baggage = Baggage { bagCurrentState :: FullState
->                        , bagLastAccState :: Maybe (FullState, Token)
+>                        , bagLastAccState :: Maybe LastAcceptingState
 >                        }
 
 Наконец, в зависимости от поведения автомата, управляющая программа может:
@@ -131,7 +143,7 @@ deriving Show здесь позволяет использовать функц�
 
 Определяем тип, кодирующий действие:
 
-> data Action = Continue Baggage | Restart (Maybe (FullState, Token))
+> data Action = Continue Baggage | Restart (Maybe LastAcceptingState)
 
 Определяем функцию, реализующую один шаг ДКА. На вход функция получает текущий
 "багаж". На выходе -- действие (остановка, перезапуск или продолжение) и новый
@@ -144,7 +156,7 @@ deriving Show здесь позволяет использовать функц�
 с таблицей переходов. Если эта операция успешна, то действие -- Continue,
 поскольку автомат не зашёл в тупик.
 
-Если же автомат заходит в тупик, то действие -- Restart. При этом
+Если же автомат заходит в тупик, то действие -- Restart.
 
 > dfaStep :: Baggage -> Action
 > dfaStep b@Baggage{..} =
@@ -153,17 +165,22 @@ deriving Show здесь позволяет использовать функц�
 >     Just st -> Continue $ b{ bagCurrentState = st
 >                            , bagLastAccState = newAccSt }
 >  where
->  newAccSt = maybe bagLastAccState Just $ stateToToken bagCurrentState
->  stateToToken fs@FullState{..}
+>  -- если stateToToken bagCurrentState = Nothing, то newAccSt = bagLastAccState
+>  -- иначе, newAccSt = stateToToken bagCurrentState
+>  newAccSt = stateToToken bagCurrentState <|> bagLastAccState
+>  stateToToken FullState{..}
 >    = case stateToTokenName fsCurrentState of
->        Just name -> Just (fs, Token{tokenName=name, tokenStr=fsOutput})
+>        Just name -> Just $ LAState {
+>             lasInput=fsInput
+>           , lasToken =Token{tokenName=name, tokenStr=fsOutput}
+>           }
 >        Nothing -> Nothing
 >  makeOneStep FullState{..}
 >    = case uncons fsInput of
 >        Just (c, cs) -> case transitionTable fsCurrentState c of
 >          Just newSt -> Just FullState{
 >              fsInput = cs
->            , fsOutput = fsOutput <> [c]
+>            , fsOutput = if c == ' ' then fsOutput else fsOutput <> [c]
 >            , fsCurrentState = newSt
 >            }
 >          Nothing -> Nothing
@@ -178,10 +195,10 @@ deriving Show здесь позволяет использовать функц�
 > dfaRun :: Baggage -> [Token]
 > dfaRun b =
 >   case dfaStep b of
->     Restart (Just (FullState{..}, tok))
->       -> if null fsInput
->          then [tok]
->          else tok : dfaRun (initState fsInput)
+>     Restart (Just LAState{..})
+>       -> lasToken : if null lasInput
+>                     then []
+>                     else dfaRun (initState lasInput)
 >     Continue bag
 >       -> dfaRun bag
 >     _ -> []
