@@ -66,8 +66,8 @@ deriving Show здесь позволяет использовать функц�
 > type StateNum = Int
 
 Объявляем функцию переходов. Эта функция полностью соответствует таблице,
-определённой в lexer-dfa.md. Функции isDigit и isAsciiLower определены в
-Data.Char.
+определённой в https://wiki.livid.pp.ru/students/sp/labs/01.html.
+Функции isDigit и isAsciiLower определены в Data.Char.
 
 > transitionTable :: StateNum -> Char -> Maybe StateNum
 > transitionTable st c =
