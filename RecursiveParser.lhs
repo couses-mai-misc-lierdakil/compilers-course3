@@ -97,7 +97,9 @@ E'. При этом, терминал E' соответствует "второ�
 > parseE' :: [Token] -> Expr -> Either String ([Token], Expr)
 > parseE' ts t1 = case ts of
 >   Token Operator "+" : ts' -> fmap (BinOp OpPlus t1) <$> parseT ts'
+>     >>= uncurry parseE'
 >   Token Operator "-" : ts' -> fmap (BinOp OpMinus t1) <$> parseT ts'
+>     >>= uncurry parseE'
 >   _ -> Right (ts, t1)
 
 Функция fmap, как и оператор (<\$>) позволяют применить функцию к "внутреннему
@@ -120,7 +122,9 @@ Expr, который "завёрнут" в (([Token],)) и в (Either String). �
 > parseT' :: [Token] -> Expr -> Either String ([Token], Expr)
 > parseT' ts t1 = case ts of
 >   Token Operator "*" : ts' -> fmap (BinOp OpMult t1) <$> parseT ts'
+>     >>= uncurry parseT'
 >   Token Operator "/" : ts' -> fmap (BinOp OpDiv t1) <$> parseT ts'
+>     >>= uncurry parseT'
 >   _ -> Right (ts, t1)
 
 Разбор нетерминала F аналогичен разбору нетерминала E:
