@@ -19,13 +19,24 @@ std::string opToStr(COpType t) {
     return "exp";
   case COpType::Neg:
     return "neg";
+  case COpType::Call:
+    return "call";
+  case COpType::Param:
+    return "param";
   }
 }
 
 Code::Code(COpType t, PRef op1, PRef op2) : type(t), op1(op1), op2(op2) {}
 void Code::print(const std::list<PRef> &code) {
-  std::cout << addr(code) << ": " << opToStr(type) << " " << op1->addr(code)
-            << ", " << op2->addr(code) << std::endl;
+  if (op1 && op2) {
+    std::cout << addr(code) << ": " << opToStr(type) << " " << op1->addr(code)
+              << ", " << op2->addr(code) << std::endl;
+  } else if (op1) {
+    std::cout << addr(code) << ": " << opToStr(type) << " " << op1->addr(code)
+              << std::endl;
+  } else {
+    std::cout << addr(code) << ": " << opToStr(type) << std::endl;
+  }
 }
 std::string Code::addr(const std::list<std::shared_ptr<Ref>> &code) {
   std::stringstream ss;
@@ -107,6 +118,25 @@ std::shared_ptr<Ref> GraphToNode::visit(std::shared_ptr<Expr> node) {
     resultMap[node] = res;
     sorted.push_back(res);
     return res;
+  } else if (auto func = std::dynamic_pointer_cast<FunctionCall>(node)) {
+    visit(func->args);
+    node->visited = Expr::VisitState::PermMark;
+    auto name = func->name;
+    auto res = std::make_shared<Code>(COpType::Call,
+                                      std::make_shared<NameRef>(name), nullptr);
+    resultMap[node] = res;
+    sorted.push_back(res);
+    return res;
+  } else if (auto args = std::dynamic_pointer_cast<Arguments>(node)) {
+    std::list<PRef> argCodes;
+    for (auto &arg : args->args) {
+      auto argCode = visit(arg);
+      argCodes.push_back(
+          std::make_shared<Code>(COpType::Param, argCode, nullptr));
+    }
+    node->visited = Expr::VisitState::PermMark;
+    sorted.splice(sorted.end(), argCodes);
+    return nullptr;
   } else {
     throw std::runtime_error(std::string("Unknown node type ") +
                              typeid(node).name());

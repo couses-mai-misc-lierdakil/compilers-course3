@@ -95,6 +95,49 @@ double Assignment::compute(std::map<std::string, double> &ctx) {
 }
 bool Assignment::operator==(const Expr &other) { return false; }
 
+////////////////////////////////////////////////////////////////
+
+Arguments::Arguments() {}
+Arguments::Arguments(PExpr expr) : args({expr}) {}
+Arguments::Arguments(PExpr other, PExpr expr)
+    : args(std::move(std::static_pointer_cast<Arguments>(other)->args)) {
+  args.push_back(expr);
+}
+void Arguments::print(std::string indent) {
+  std::cout << indent << "(" << std::endl;
+  for (auto &i : args) {
+    i->print(indent + "  ");
+  }
+  std::cout << indent << ")" << std::endl;
+}
+double Arguments::compute(std::map<std::string, double> &ctx) {
+  throw std::runtime_error("Can not compute Arguments");
+}
+bool Arguments::operator==(const Expr &other) {
+  auto o = dynamic_cast<const Arguments *>(&other);
+  if (!o)
+    return false;
+  return args == o->args;
+}
+
+///////////////////////////////////////////////////////////////
+
+FunctionCall::FunctionCall(std::string name, PExpr args)
+    : name(name), args(std::static_pointer_cast<Arguments>(args)) {}
+void FunctionCall::print(std::string indent) {
+  std::cout << indent << name;
+  args->print(indent);
+}
+double FunctionCall::compute(std::map<std::string, double> &ctx) {
+  throw std::runtime_error("Not implemented");
+}
+bool FunctionCall::operator==(const Expr &other) {
+  auto o = dynamic_cast<const FunctionCall *>(&other);
+  if (!o)
+    return false;
+  return name == o->name && args == o->args;
+}
+
 ////////////////////////// ParserBase /////////////////////////
 
 ParserBase::ParserBase() {}
@@ -143,6 +186,12 @@ PExpr ParserBase::makeExpr(std::string name) {
 
 PExpr ParserBase::makeExpr(std::string name, PExpr val) {
   PExpr newExpr = std::make_shared<Assignment>(name, val);
+  return newExpr;
+}
+
+PExpr ParserBase::makeFunCall(std::string name, PExpr args) {
+  PExpr newExpr = std::make_shared<FunctionCall>(name, args);
+  knownExprs.push_back(newExpr);
   return newExpr;
 }
 

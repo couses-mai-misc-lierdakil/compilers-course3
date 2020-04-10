@@ -20,14 +20,25 @@ assign /=/
 %inherit{: public ParserBase}
 
 E ->
-    %left1  E add E      { makeExpr(OpType::Add, _1, _3) }
-  | %left1  E sub E      { makeExpr(OpType::Sub, _1, _3) }
-  | %left2  E mul E      { makeExpr(OpType::Mul, _1, _3) }
-  | %left2  E div E      { makeExpr(OpType::Div, _1, _3) }
-  | %right4 E pow E      { makeExpr(OpType::Exp, _1, _3) }
-  | lparen E rparen      { std::move(_2) }
-  | id                   { makeExpr(_1.text) }
-  | number               { makeExpr(std::stod(_1.text)) }
-  | %left3 sub E         { makeExpr(_2) }
-  | %right0 id assign E  { makeExpr(_1.text, std::move(_3)) }
+    %left1  E add E       { makeExpr(OpType::Add, _1, _3) }
+  | %left1  E sub E       { makeExpr(OpType::Sub, _1, _3) }
+  | %left2  E mul E       { makeExpr(OpType::Mul, _1, _3) }
+  | %left2  E div E       { makeExpr(OpType::Div, _1, _3) }
+  | %right4 E pow E       { makeExpr(OpType::Exp, _1, _3) }
+  | lparen E rparen       { std::move(_2) }
+  | id                    { makeExpr(_1.text) }
+  | number                { makeExpr(std::stod(_1.text)) }
+  | %left3 sub E          { makeExpr(_2) }
+  | %right0 id assign E   { makeExpr(_1.text, std::move(_3)) }
+  | id lparen Args rparen { makeFunCall(_1.text, std::move(_3)) }
+  ;
+
+Args ->
+    ArgsOne               { std::move(_1) }
+  |                       { std::make_shared<Arguments>() }
+  ;
+
+ArgsOne ->
+    ArgsOne comma E       { std::make_shared<Arguments>(_1, _3) }
+  | E                     { std::make_shared<Arguments>(_1) }
   ;

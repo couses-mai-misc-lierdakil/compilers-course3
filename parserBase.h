@@ -61,6 +61,27 @@ public:
   bool operator==(const Expr &other);
 };
 
+class Arguments : public Expr {
+public:
+  std::list<PExpr> args;
+  Arguments();
+  Arguments(PExpr);
+  Arguments(PExpr, PExpr);
+  void print(std::string indent);
+  double compute(std::map<std::string, double> &ctx);
+  bool operator==(const Expr &other);
+};
+
+class FunctionCall : public Expr {
+public:
+  std::string name;
+  std::shared_ptr<Arguments> args;
+  FunctionCall(std::string, PExpr);
+  void print(std::string indent);
+  double compute(std::map<std::string, double> &ctx);
+  bool operator==(const Expr &other);
+};
+
 class Assignment : public Expr {
 public:
   std::string varName;
@@ -80,6 +101,7 @@ protected:
   PExpr makeExpr(double);
   PExpr makeExpr(std::string);
   PExpr makeExpr(std::string, PExpr);
+  PExpr makeFunCall(std::string, PExpr);
 
 public:
   ParserBase();
