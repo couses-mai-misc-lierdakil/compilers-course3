@@ -1,6 +1,7 @@
 #include "code.h"
 #include "interpret.h"
 #include "parser.h"
+#include "typeCheck.h"
 #include <cmath>
 #include <iostream>
 
@@ -12,6 +13,9 @@ int main() {
     Lexer lex(line);
     Parser parser(&lex);
     auto expr = parser.parse();
+    expr->print("");
+    TypeCheck tc;
+    tc.typecheck(expr);
     GraphToNode g2n;
     auto code = g2n.graphToCode(expr);
     for (auto &i : code) {

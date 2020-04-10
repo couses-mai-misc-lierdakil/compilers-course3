@@ -17,6 +17,7 @@ public:
   virtual bool operator==(const Expr &other) = 0;
   enum class VisitState { NotVisited, TempMark, PermMark };
   VisitState visited = VisitState::NotVisited;
+  VisitState visitedTc = VisitState::NotVisited;
 };
 
 enum class OpType : std::size_t { Add, Sub, Mul, Div, Exp };
