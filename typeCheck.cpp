@@ -32,6 +32,9 @@ void TypeCheck::visit(const PExpr &node) {
       throw std::runtime_error("Unknown function " + name);
     }
   } else if (auto args = std::dynamic_pointer_cast<Arguments>(node)) {
+    for (auto &a : args->args) {
+      visit(a);
+    }
   } else {
     throw std::runtime_error(std::string("Unknown node type ") +
                              typeid(node).name());
