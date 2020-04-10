@@ -23,6 +23,8 @@ std::string opToStr(COpType t) {
     return "call";
   case COpType::Param:
     return "param";
+  case COpType::GetParam:
+    return "getParam";
   }
 }
 
@@ -136,6 +138,21 @@ std::shared_ptr<Ref> GraphToNode::visit(std::shared_ptr<Expr> node) {
     }
     node->visited = Expr::VisitState::PermMark;
     sorted.splice(sorted.end(), argCodes);
+    return nullptr;
+  } else if (auto fdef = std::dynamic_pointer_cast<FunctionDef>(node)) {
+    visit(fdef->def);
+    visit(fdef->expr);
+    node->visited = Expr::VisitState::PermMark;
+    return nullptr;
+  } else if (auto args = std::dynamic_pointer_cast<DefArgs>(node)) {
+    for (auto arg = args->args.rbegin(); arg != args->args.rend(); ++arg) {
+      auto name = std::make_shared<NameRef>(*arg);
+      auto cmd = std::make_shared<Code>(COpType::GetParam, nullptr, nullptr);
+      sorted.push_back(cmd);
+      auto cmd2 = std::make_shared<Code>(COpType::Assign, name, cmd);
+      sorted.push_back(cmd2);
+    }
+    node->visited = Expr::VisitState::PermMark;
     return nullptr;
   } else {
     throw std::runtime_error(std::string("Unknown node type ") +

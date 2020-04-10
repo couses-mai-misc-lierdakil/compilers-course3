@@ -5,7 +5,7 @@
 #include <memory>
 #include "parserBase.h"
 
-enum class COpType { Assign, Add, Sub, Mul, Div, Exp, Neg, Call, Param };
+enum class COpType { Assign, Add, Sub, Mul, Div, Exp, Neg, Call, Param, GetParam };
 
 std::string opToStr(COpType);
 

@@ -73,6 +73,29 @@ public:
   bool operator==(const Expr &other);
 };
 
+class DefArgs : public Expr {
+public:
+  std::list<std::string> args;
+  DefArgs() {}
+  DefArgs(std::string arg) : args({arg}) {}
+  DefArgs(PExpr def, std::string arg)
+      : args(std::move(std::static_pointer_cast<DefArgs>(def)->args)) {
+    args.push_back(arg);
+  }
+  void print(std::string indent) {}
+  double compute(std::map<std::string, double> &ctx) { return 0; }
+  bool operator==(const Expr &other) { return false; }
+};
+
+class FunctionDef : public Expr {
+public:
+  std::string name;
+  std::shared_ptr<DefArgs> def;
+  PExpr expr;
+  FunctionDef(std::string name, PExpr def, PExpr expr)
+      : name(name), def(std::static_pointer_cast<DefArgs>(def)), expr(expr) {}
+};
+
 class FunctionCall : public Expr {
 public:
   std::string name;

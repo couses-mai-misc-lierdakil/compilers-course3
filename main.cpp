@@ -8,6 +8,7 @@
 int main() {
   std::string line;
   std::map<std::string, double> constants;
+  std::map<std::pair<std::string, std::size_t>, std::list<PRef>> functions;
   constants["pi"] = M_PI;
   while (std::getline(std::cin, line)) {
     Lexer lex(line);
