@@ -11,6 +11,8 @@ public:
   virtual void print(std::string indent) = 0;
   virtual double compute(const std::map<std::string, double> &context) = 0;
   virtual bool operator==(const Expr &other) = 0;
+  enum class VisitState { NotVisited, TempMark, PermMark };
+  VisitState visited = VisitState::NotVisited;
 };
 
 enum class OpType : std::size_t { Add, Sub, Mul, Div, Exp };
@@ -18,11 +20,10 @@ enum class OpType : std::size_t { Add, Sub, Mul, Div, Exp };
 std::string opTypeToStr(OpType type);
 
 class BinOp : public Expr {
+public:
   OpType type;
   std::shared_ptr<Expr> op1;
   std::shared_ptr<Expr> op2;
-
-public:
   BinOp(OpType type, std::shared_ptr<Expr> op1, std::shared_ptr<Expr> op2);
   void print(std::string indent);
   double compute(const std::map<std::string, double> &ctx);
@@ -30,9 +31,8 @@ public:
 };
 
 class Negate : public Expr {
-  std::shared_ptr<Expr> op;
-
 public:
+  std::shared_ptr<Expr> op;
   Negate(std::shared_ptr<Expr> op);
   void print(std::string indent);
   double compute(const std::map<std::string, double> &ctx);
@@ -40,9 +40,8 @@ public:
 };
 
 class Value : public Expr {
-  double val;
-
 public:
+  double val;
   Value(double val);
   void print(std::string indent);
   double compute(const std::map<std::string, double> &);
@@ -50,9 +49,8 @@ public:
 };
 
 class Constant : public Expr {
-  std::string name;
-
 public:
+  std::string name;
   Constant(std::string name);
   void print(std::string indent);
   double compute(const std::map<std::string, double> &ctx);
