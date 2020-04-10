@@ -94,6 +94,9 @@ public:
   PExpr expr;
   FunctionDef(std::string name, PExpr def, PExpr expr)
       : name(name), def(std::static_pointer_cast<DefArgs>(def)), expr(expr) {}
+  void print(std::string indent) {}
+  double compute(std::map<std::string, double> &ctx) { return 0; }
+  bool operator==(const Expr &other) { return false; }
 };
 
 class FunctionCall : public Expr {

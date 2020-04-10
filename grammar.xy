@@ -21,16 +21,23 @@ def /def/
 %inherit{: public ParserBase}
 
 S ->
-    E                                     { std::move(_1) }
-  | def id lparen DefArgs rparen assign E { std::make_shared<FunctionDef>(_2, _4, _7) }
+    E       { std::move(_1) }
+  | FuncDef { std::move(_1) }
+  ;
+
+FuncDef ->
+  def id lparen DefArgs rparen assign E { std::make_shared<FunctionDef>(_2.text, _4, _7) }
+  ;
 
 DefArgs ->
     DefArgsOne  { std::move(_1) }
   |             { std::make_shared<DefArgs>() }
+  ;
 
-DefArgs ->
+DefArgsOne ->
     DefArgsOne comma id { std::make_shared<DefArgs>(_1, _3.text) }
   | id                  { std::make_shared<DefArgs>(_1.text) }
+  ;
 
 E ->
     %left1  E add E       { makeExpr(OpType::Add, _1, _3) }
