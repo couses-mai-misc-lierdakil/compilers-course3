@@ -99,6 +99,14 @@ std::shared_ptr<Ref> GraphToNode::visit(std::shared_ptr<Expr> node) {
     resultMap[node] = res;
     sorted.push_back(res);
     return res;
+  } else if (auto assign = std::dynamic_pointer_cast<Assignment>(node)) {
+    auto val = visit(assign->value);
+    node->visited = Expr::VisitState::PermMark;
+    auto name = std::make_shared<NameRef>(assign->varName);
+    auto res = std::make_shared<Code>(COpType::Assign, name, val);
+    resultMap[node] = res;
+    sorted.push_back(res);
+    return res;
   } else {
     throw std::runtime_error(std::string("Unknown node type ") +
                              typeid(node).name());

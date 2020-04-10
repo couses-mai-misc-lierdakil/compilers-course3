@@ -5,11 +5,15 @@
 #include <map>
 #include <memory>
 
+class Expr;
+
+using PExpr = std::shared_ptr<Expr>;
+
 class Expr {
 public:
   virtual ~Expr() {}
   virtual void print(std::string indent) = 0;
-  virtual double compute(const std::map<std::string, double> &context) = 0;
+  virtual double compute(std::map<std::string, double> &context) = 0;
   virtual bool operator==(const Expr &other) = 0;
   enum class VisitState { NotVisited, TempMark, PermMark };
   VisitState visited = VisitState::NotVisited;
@@ -22,20 +26,20 @@ std::string opTypeToStr(OpType type);
 class BinOp : public Expr {
 public:
   OpType type;
-  std::shared_ptr<Expr> op1;
-  std::shared_ptr<Expr> op2;
-  BinOp(OpType type, std::shared_ptr<Expr> op1, std::shared_ptr<Expr> op2);
+  PExpr op1;
+  PExpr op2;
+  BinOp(OpType type, PExpr op1, PExpr op2);
   void print(std::string indent);
-  double compute(const std::map<std::string, double> &ctx);
+  double compute(std::map<std::string, double> &ctx);
   bool operator==(const Expr &other);
 };
 
 class Negate : public Expr {
 public:
-  std::shared_ptr<Expr> op;
-  Negate(std::shared_ptr<Expr> op);
+  PExpr op;
+  Negate(PExpr op);
   void print(std::string indent);
-  double compute(const std::map<std::string, double> &ctx);
+  double compute(std::map<std::string, double> &ctx);
   bool operator==(const Expr &other);
 };
 
@@ -44,7 +48,7 @@ public:
   double val;
   Value(double val);
   void print(std::string indent);
-  double compute(const std::map<std::string, double> &);
+  double compute(std::map<std::string, double> &);
   bool operator==(const Expr &other);
 };
 
@@ -53,24 +57,34 @@ public:
   std::string name;
   Constant(std::string name);
   void print(std::string indent);
-  double compute(const std::map<std::string, double> &ctx);
+  double compute(std::map<std::string, double> &ctx);
+  bool operator==(const Expr &other);
+};
+
+class Assignment : public Expr {
+public:
+  std::string varName;
+  PExpr value;
+  Assignment(std::string varName, PExpr value);
+  void print(std::string indent);
+  double compute(std::map<std::string, double> &ctx);
   bool operator==(const Expr &other);
 };
 
 class ParserBase {
-  std::list<std::shared_ptr<Expr>> knownExprs;
+  std::list<PExpr> knownExprs;
 
 protected:
-  std::shared_ptr<Expr> makeExpr(OpType, std::shared_ptr<Expr>,
-                                 std::shared_ptr<Expr>);
-  std::shared_ptr<Expr> makeExpr(std::shared_ptr<Expr>);
-  std::shared_ptr<Expr> makeExpr(double);
-  std::shared_ptr<Expr> makeExpr(std::string);
+  PExpr makeExpr(OpType, PExpr, PExpr);
+  PExpr makeExpr(PExpr);
+  PExpr makeExpr(double);
+  PExpr makeExpr(std::string);
+  PExpr makeExpr(std::string, PExpr);
 
 public:
   ParserBase();
   virtual ~ParserBase();
 };
 
-using ResultType = std::shared_ptr<Expr>;
+using ResultType = PExpr;
 #endif

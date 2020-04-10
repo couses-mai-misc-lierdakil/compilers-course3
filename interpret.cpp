@@ -28,7 +28,10 @@ double Interpreter::interpret(std::map<std::string, double> &context,
         valueMap[i] = std::pow(valueMap[op->op1], valueMap[op->op2]);
         break;
       case COpType::Assign:
-        throw std::runtime_error("Assign undefined!");
+        auto val = valueMap[op->op2];
+        valueMap[i] = val;
+        valueMap[op->op1] = val;
+        context[std::static_pointer_cast<NameRef>(op->op1)->nameRef] = val;
         break;
       }
     } else if (auto val = std::dynamic_pointer_cast<ValRef>(i)) {
