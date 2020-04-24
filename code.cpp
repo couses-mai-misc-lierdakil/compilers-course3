@@ -19,6 +19,18 @@ std::string opToStr(COpType t) {
     return "exp";
   case COpType::Neg:
     return "neg";
+  case COpType::IntToFloat:
+    return "int_to_float";
+  case COpType::IntAdd:
+    return "int_add";
+  case COpType::IntSub:
+    return "int_sub";
+  case COpType::IntMul:
+    return "int_mul";
+  case COpType::IntDiv:
+    return "int_div";
+  case COpType::IntNeg:
+    return "int_neg";
   case COpType::Call:
     return "call";
   case COpType::Param:
@@ -58,7 +70,27 @@ std::string ValRef::addr(const std::list<PRef> &) {
   return std::to_string(valRef);
 }
 
+IntRef::IntRef(int val) : val(val) {}
+void IntRef::print(const std::list<PRef> &) {}
+std::string IntRef::addr(const std::list<PRef> &) {
+  return "i" + std::to_string(val);
+}
+
 ///////////////////////////////////////////////////
+
+COpType fromType(Type t, COpType forInt, COpType forFloat, std::string where) {
+  switch (t) {
+  case Type::IntType:
+    return forInt;
+    break;
+  case Type::FloatType:
+    return forFloat;
+    break;
+  default:
+    throw new std::runtime_error("Unknown type while building code for " +
+                                 where);
+  }
+}
 
 std::shared_ptr<Ref> GraphToNode::visit(std::shared_ptr<Expr> node) {
   if (node->visited == Expr::VisitState::PermMark)
@@ -72,22 +104,53 @@ std::shared_ptr<Ref> GraphToNode::visit(std::shared_ptr<Expr> node) {
     auto opRef2 = visit(binOp->op2);
     node->visited = Expr::VisitState::PermMark;
     COpType opType;
-    switch (binOp->type) {
-    case OpType::Add:
-      opType = COpType::Add;
-      break;
-    case OpType::Div:
-      opType = COpType::Div;
-      break;
-    case OpType::Exp:
-      opType = COpType::Exp;
-      break;
-    case OpType::Sub:
-      opType = COpType::Sub;
-      break;
-    case OpType::Mul:
-      opType = COpType::Mul;
-      break;
+    if (binOp->op1->type == Type::IntType &&
+        binOp->op2->type == Type::IntType) {
+      switch (binOp->type) {
+      case OpType::Add:
+        opType = COpType::IntAdd;
+        break;
+      case OpType::Div:
+        opType = COpType::IntDiv;
+        break;
+      case OpType::Exp:
+        opType = COpType::Exp;
+        break;
+      case OpType::Sub:
+        opType = COpType::IntSub;
+        break;
+      case OpType::Mul:
+        opType = COpType::IntMul;
+        break;
+      }
+    } else {
+      switch (binOp->type) {
+      case OpType::Add:
+        opType = COpType::Add;
+        break;
+      case OpType::Div:
+        opType = COpType::Div;
+        break;
+      case OpType::Exp:
+        opType = COpType::Exp;
+        break;
+      case OpType::Sub:
+        opType = COpType::Sub;
+        break;
+      case OpType::Mul:
+        opType = COpType::Mul;
+        break;
+      }
+    }
+    if (binOp->op1->type != binOp->op2->type || opType == COpType::Exp) {
+      if (binOp->op1->type == Type::IntType) {
+        opRef1 = std::make_shared<Code>(COpType::IntToFloat, opRef1, nullptr);
+        sorted.push_back(opRef1);
+      }
+      if (binOp->op2->type == Type::IntType) {
+        opRef2 = std::make_shared<Code>(COpType::IntToFloat, opRef2, nullptr);
+        sorted.push_back(opRef2);
+      }
     }
     auto res = std::make_shared<Code>(opType, opRef1, opRef2);
     resultMap[node] = res;
@@ -96,13 +159,21 @@ std::shared_ptr<Ref> GraphToNode::visit(std::shared_ptr<Expr> node) {
   } else if (auto neg = std::dynamic_pointer_cast<Negate>(node)) {
     auto opRef = visit(neg->op);
     node->visited = Expr::VisitState::PermMark;
-    auto res = std::make_shared<Code>(COpType::Neg, opRef, nullptr);
+    auto res = std::make_shared<Code>(
+        fromType(neg->op->type, COpType::IntNeg, COpType::Neg, "Negate"), opRef,
+        nullptr);
     resultMap[node] = res;
     sorted.push_back(res);
     return res;
   } else if (auto val = std::dynamic_pointer_cast<Value>(node)) {
     node->visited = Expr::VisitState::PermMark;
     auto res = std::make_shared<ValRef>(val->val);
+    resultMap[node] = res;
+    sorted.push_back(res);
+    return res;
+  } else if (auto val = std::dynamic_pointer_cast<IntValue>(node)) {
+    node->visited = Expr::VisitState::PermMark;
+    auto res = std::make_shared<IntRef>(val->val);
     resultMap[node] = res;
     sorted.push_back(res);
     return res;
@@ -121,24 +192,28 @@ std::shared_ptr<Ref> GraphToNode::visit(std::shared_ptr<Expr> node) {
     sorted.push_back(res);
     return res;
   } else if (auto func = std::dynamic_pointer_cast<FunctionCall>(node)) {
-    visit(func->args);
-    node->visited = Expr::VisitState::PermMark;
-    auto name = func->name;
-    auto res = std::make_shared<Code>(COpType::Call,
-                                      std::make_shared<NameRef>(name), nullptr);
-    resultMap[node] = res;
-    sorted.push_back(res);
-    return res;
-  } else if (auto args = std::dynamic_pointer_cast<Arguments>(node)) {
     std::list<PRef> argCodes;
-    for (auto &arg : args->args) {
+    std::size_t argIdx = 0;
+    for (auto &arg : func->args->args) {
       auto argCode = visit(arg);
+      if (func->argTypes.at(argIdx) != arg->type) {
+        argCode = std::make_shared<Code>(COpType::IntToFloat, argCode, nullptr);
+        argCodes.push_back(argCode);
+      }
       argCodes.push_back(
           std::make_shared<Code>(COpType::Param, argCode, nullptr));
+      argIdx++;
     }
     node->visited = Expr::VisitState::PermMark;
     sorted.splice(sorted.end(), argCodes);
-    return nullptr;
+    node->visited = Expr::VisitState::PermMark;
+    auto name = func->name;
+    auto res = std::make_shared<Code>(
+        COpType::Call, std::make_shared<NameRef>(name),
+        std::make_shared<IntRef>(func->args->args.size()));
+    resultMap[node] = res;
+    sorted.push_back(res);
+    return res;
   } else if (auto fdef = std::dynamic_pointer_cast<FunctionDef>(node)) {
     visit(fdef->def);
     visit(fdef->expr);
@@ -146,7 +221,7 @@ std::shared_ptr<Ref> GraphToNode::visit(std::shared_ptr<Expr> node) {
     return nullptr;
   } else if (auto args = std::dynamic_pointer_cast<DefArgs>(node)) {
     for (auto arg = args->args.rbegin(); arg != args->args.rend(); ++arg) {
-      auto name = std::make_shared<NameRef>(*arg);
+      auto name = std::make_shared<NameRef>(arg->first);
       auto cmd = std::make_shared<Code>(COpType::GetParam, nullptr, nullptr);
       sorted.push_back(cmd);
       auto cmd2 = std::make_shared<Code>(COpType::Assign, name, cmd);

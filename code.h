@@ -1,11 +1,28 @@
 #ifndef CODE_H
 #define CODE_H
-#include <list>
-#include <string>
-#include <memory>
 #include "parserBase.h"
+#include <list>
+#include <memory>
+#include <string>
 
-enum class COpType { Assign, Add, Sub, Mul, Div, Exp, Neg, Call, Param, GetParam };
+enum class COpType {
+  Assign,
+  Add,
+  Sub,
+  Mul,
+  Div,
+  Exp,
+  Neg,
+  IntAdd,
+  IntSub,
+  IntMul,
+  IntDiv,
+  IntNeg,
+  Call,
+  Param,
+  GetParam,
+  IntToFloat
+};
 
 std::string opToStr(COpType);
 
@@ -31,15 +48,22 @@ struct Code : public Ref {
 struct NameRef : public Ref {
   std::string nameRef;
   NameRef(std::string s);
-  void print(const std::list<PRef > &);
-  std::string addr(const std::list<PRef > &);
+  void print(const std::list<PRef> &);
+  std::string addr(const std::list<PRef> &);
 };
 
 struct ValRef : public Ref {
   double valRef;
   ValRef(double val);
-  void print(const std::list<PRef > &);
-  std::string addr(const std::list<PRef > &);
+  void print(const std::list<PRef> &);
+  std::string addr(const std::list<PRef> &);
+};
+
+struct IntRef : public Ref {
+  int val;
+  IntRef(int val);
+  void print(const std::list<PRef> &);
+  std::string addr(const std::list<PRef> &);
 };
 
 class GraphToNode {
@@ -47,6 +71,7 @@ class GraphToNode {
   ResultT sorted;
   PRef visit(std::shared_ptr<Expr> node);
   std::map<std::shared_ptr<Expr>, PRef> resultMap;
+
 public:
   ResultT graphToCode(std::shared_ptr<Expr> root);
 };

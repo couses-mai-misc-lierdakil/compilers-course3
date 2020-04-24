@@ -65,6 +65,20 @@ bool Value::operator==(const Expr &other) {
 
 ///////////////////////////////////////////////////////////////
 
+IntValue::IntValue(int val) : val(val) {}
+void IntValue::print(std::string indent) {
+  std::cout << indent << "i" << val << std::endl;
+}
+double IntValue::compute(std::map<std::string, double> &) { return val; }
+bool IntValue::operator==(const Expr &other) {
+  auto o = dynamic_cast<const IntValue *>(&other);
+  if (!o)
+    return false;
+  return val == o->val;
+}
+
+///////////////////////////////////////////////////////////////
+
 Constant::Constant(std::string name) : name(name) {}
 void Constant::print(std::string indent) {
   std::cout << indent << name << std::endl;
@@ -170,6 +184,16 @@ PExpr ParserBase::makeExpr(double val) {
       return i;
   }
   PExpr newExpr = std::make_shared<Value>(val);
+  knownExprs.push_back(newExpr);
+  return newExpr;
+}
+PExpr ParserBase::makeIntExpr(int val) {
+  IntValue op(val);
+  for (auto &i : knownExprs) {
+    if (*i == op)
+      return i;
+  }
+  PExpr newExpr = std::make_shared<IntValue>(val);
   knownExprs.push_back(newExpr);
   return newExpr;
 }
